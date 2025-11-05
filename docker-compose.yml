@@ -1,0 +1,98 @@
+# 🧬 KONOMI SYSTEM - Docker Compose
+# Multi-service orchestration
+
+version: '3.8'
+
+services:
+  # REST API Service
+  api:
+    build: .
+    container_name: konomi-api
+    ports:
+      - "3001:3001"
+    environment:
+      - EVGPU_CORES=4
+      - DB_URL=postgresql://konomi:konomi@db:5432/konomi
+      - REDIS_URL=redis://redis:6379/0
+    command: python api_rest.py
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # WebSocket Service
+  websocket:
+    build: .
+    container_name: konomi-websocket
+    ports:
+      - "3002:3002"
+    environment:
+      - EVGPU_CORES=4
+      - REDIS_URL=redis://redis:6379/0
+    command: python api_websocket.py
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Redis (for caching and pub/sub)
+  redis:
+    image: redis:7-alpine
+    container_name: konomi-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # PostgreSQL (for persistent storage)
+  db:
+    image: postgres:15-alpine
+    container_name: konomi-db
+    environment:
+      - POSTGRES_USER=konomi
+      - POSTGRES_PASSWORD=konomi
+      - POSTGRES_DB=konomi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Web Frontend (placeholder for future UI)
+  # web:
+  #   build: ./web
+  #   container_name: konomi-web
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: konomi-network
